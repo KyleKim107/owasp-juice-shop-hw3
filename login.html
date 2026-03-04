@@ -10,7 +10,6 @@
 
     :root {
       --orange: #ff6600;
-      --orange-dim: #cc5200;
       --bg: #0d0d0d;
       --panel: #141414;
       --border: #2a2a2a;
@@ -32,7 +31,6 @@
       overflow: hidden;
     }
 
-    /* Animated grid background */
     body::before {
       content: '';
       position: fixed;
@@ -57,14 +55,12 @@
       padding: 0 1.5rem;
     }
 
-    /* Logo */
     .logo {
       text-align: center;
       margin-bottom: 2rem;
     }
     .logo-icon {
       font-size: 3rem;
-      filter: drop-shadow(0 0 12px var(--orange));
       animation: pulse 2.5s ease-in-out infinite;
     }
     @keyframes pulse {
@@ -87,14 +83,13 @@
       margin-top: .2rem;
     }
 
-    /* Card */
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
       border-top: 3px solid var(--orange);
       border-radius: 4px;
       padding: 2rem;
-      box-shadow: 0 8px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,102,0,.05);
+      box-shadow: 0 8px 40px rgba(0,0,0,.6);
     }
 
     .card h2 {
@@ -106,7 +101,6 @@
       margin-bottom: 1.6rem;
     }
 
-    /* Fields */
     .field { margin-bottom: 1.2rem; }
     .field label {
       display: block;
@@ -141,12 +135,10 @@
       font-size: .72rem;
       color: var(--error);
       margin-top: .35rem;
-      min-height: 1rem;
       display: none;
     }
     .field-error.show { display: block; }
 
-    /* Submit button */
     .btn {
       width: 100%;
       padding: .8rem;
@@ -165,9 +157,7 @@
     }
     .btn:hover  { background: #ff8533; }
     .btn:active { transform: scale(.98); }
-    .btn:disabled { background: #444; cursor: not-allowed; color: #888; }
 
-    /* Message box */
     #message {
       margin-top: 1rem;
       padding: .7rem .9rem;
@@ -177,9 +167,9 @@
       display: none;
     }
     #message.success { display:block; background:#0d2b1d; border:1px solid var(--success); color:var(--success); }
-    #message.error   { display:block; background:#2b0d0d; border:1px solid var(--error);   color:var(--error);   }
+    #message.error   { display:block; background:#2b0d0d; border:1px solid var(--error);   color:var(--error); }
 
-    /* ⚠️ VULNERABILITY: innerHTML used for error display — intentional for Part 3 XSS demo */
+    /* ⚠️ VULNERABILITY: innerHTML used here — intentional for Part 3 XSS demo */
     #vuln-output {
       margin-top: 1.2rem;
       padding: .6rem .9rem;
@@ -254,14 +244,13 @@
       <div class="field-error" id="password-error"></div>
     </div>
 
-    <button class="btn" id="login-btn" onclick="handleLogin()">Login</button>
+    <button class="btn" onclick="handleLogin()">Login</button>
 
     <div id="message"></div>
 
     <!--
-      ⚠️  INTENTIONAL VULNERABILITY (Part 3 Demo)
-      The div below uses innerHTML to reflect user input,
-      which enables a Stored/Reflected XSS attack.
+      ⚠️ INTENTIONAL VULNERABILITY (Part 3 Demo)
+      The span below uses innerHTML to reflect user input → XSS possible.
       Fix: replace innerHTML with textContent.
     -->
     <div id="vuln-output">
@@ -280,63 +269,79 @@
 </div>
 
 <script>
-  // ─── Client-Side Validation ────────────────────────────────────────────────
 
-  function validateEmail(email) {
-    if (!email) return 'Email is required.';
-    if (!email.includes('@')) return 'Email must contain "@".';
-    return null;
+  // ─────────────────────────────────────────────────────────────────────────
+  // validateForm()
+  //   A single function that checks BOTH email and password conditions:
+  //   1. Email must not be empty
+  //   2. Email must contain "@"
+  //   3. Password must not be empty
+  //   4. Password must be at least 8 characters long
+  // ─────────────────────────────────────────────────────────────────────────
+  function validateForm(email, password) {
+    if (!email)
+      return { valid: false, field: 'email', message: 'Email is required.' };
+    if (!email.includes('@'))
+      return { valid: false, field: 'email', message: 'Email must contain "@".' };
+    if (!password)
+      return { valid: false, field: 'password', message: 'Password is required.' };
+    if (password.length < 8)
+      return { valid: false, field: 'password', message: 'Password must be at least 8 characters.' };
+    return { valid: true, field: null, message: '' };
   }
 
-  function validatePassword(password) {
-    if (!password) return 'Password is required.';
-    if (password.length < 8) return 'Password must be at least 8 characters.';
-    return null;
-  }
-
-  function setFieldState(inputId, errorId, errorMsg) {
+  // ─── Helper: set or clear a field's error state ───────────────────────────
+  function setFieldError(inputId, errorId, message) {
     const input = document.getElementById(inputId);
     const errEl = document.getElementById(errorId);
-    if (errorMsg) {
+    if (message) {
       input.classList.add('invalid');
       input.classList.remove('valid');
-      errEl.textContent = errorMsg;
+      errEl.textContent = message;
       errEl.classList.add('show');
-      return false;
     } else {
       input.classList.remove('invalid');
       input.classList.add('valid');
       errEl.textContent = '';
       errEl.classList.remove('show');
-      return true;
     }
   }
 
+  // ─── Helper: show the message box ─────────────────────────────────────────
   function showMessage(text, type) {
     const el = document.getElementById('message');
     el.textContent = text;
-    el.className = type; // 'success' or 'error'
+    el.className = type;
   }
 
-  // ─── Main Handler ──────────────────────────────────────────────────────────
-
+  // ─── Main Login Handler ───────────────────────────────────────────────────
   function handleLogin() {
     const email    = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
 
-    const emailOk = setFieldState('email',    'email-error',    validateEmail(email));
-    const passOk  = setFieldState('password', 'password-error', validatePassword(password));
+    // Clear previous errors
+    setFieldError('email',    'email-error',    null);
+    setFieldError('password', 'password-error', null);
+
+    // Run the single validation function
+    const result = validateForm(email, password);
 
     // ⚠️ VULNERABILITY: innerHTML reflects raw user input → XSS possible
-    // Fix: use textContent instead of innerHTML
+    // To exploit: type  <img src=x onerror="alert('XSS!')">  in the email field
+    // Fix:        replace innerHTML with textContent (line below)
     document.getElementById('reflected-email').innerHTML = email;
 
-    if (!emailOk || !passOk) {
-      showMessage('Please fix the errors above.', 'error');
+    if (!result.valid) {
+      if (result.field === 'email') {
+        setFieldError('email', 'email-error', result.message);
+      } else {
+        setFieldError('password', 'password-error', result.message);
+      }
+      showMessage(result.message, 'error');
       return;
     }
 
-    // Simulated server-side check (client-side only for demo)
+    // Simulated auth (client-side demo only — no real server)
     if (email === 'admin@juice-sh.op' && password === 'admin123') {
       showMessage('✓ Login successful! Redirecting...', 'success');
     } else {
@@ -344,21 +349,11 @@
     }
   }
 
-  // ─── Live inline validation ────────────────────────────────────────────────
-
-  document.getElementById('email').addEventListener('blur', function() {
-    setFieldState('email', 'email-error', validateEmail(this.value.trim()));
-  });
-
-  document.getElementById('password').addEventListener('blur', function() {
-    setFieldState('password', 'password-error', validatePassword(this.value));
-  });
-
-  // Enter key support
+  // ─── Enter key support ────────────────────────────────────────────────────
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') handleLogin();
   });
-</script>
 
+</script>
 </body>
 </html>
