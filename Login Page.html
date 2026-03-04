@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OWASP Juice Shop – Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #ff6600;
+      --orange-dim: #cc5200;
+      --bg: #0d0d0d;
+      --panel: #141414;
+      --border: #2a2a2a;
+      --text: #e0e0e0;
+      --muted: #666;
+      --error: #ff4444;
+      --success: #00cc66;
+    }
+
+    body {
+      font-family: 'Rajdhani', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Animated grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,102,0,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,102,0,.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridScroll 20s linear infinite;
+      z-index: 0;
+    }
+    @keyframes gridScroll {
+      from { background-position: 0 0; }
+      to   { background-position: 40px 40px; }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 420px;
+      padding: 0 1.5rem;
+    }
+
+    /* Logo */
+    .logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .logo-icon {
+      font-size: 3rem;
+      filter: drop-shadow(0 0 12px var(--orange));
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { filter: drop-shadow(0 0 8px var(--orange)); }
+      50%       { filter: drop-shadow(0 0 20px var(--orange)); }
+    }
+    .logo h1 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-top: .3rem;
+    }
+    .logo p {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .72rem;
+      color: var(--muted);
+      letter-spacing: .18em;
+      margin-top: .2rem;
+    }
+
+    /* Card */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--orange);
+      border-radius: 4px;
+      padding: 2rem;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6), 0 0 0 1px rgba(255,102,0,.05);
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 1.6rem;
+    }
+
+    /* Fields */
+    .field { margin-bottom: 1.2rem; }
+    .field label {
+      display: block;
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: .4rem;
+    }
+    .field input {
+      width: 100%;
+      padding: .7rem .9rem;
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .9rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .field input:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 3px rgba(255,102,0,.12);
+    }
+    .field input.invalid { border-color: var(--error); }
+    .field input.valid   { border-color: var(--success); }
+
+    .field-error {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .72rem;
+      color: var(--error);
+      margin-top: .35rem;
+      min-height: 1rem;
+      display: none;
+    }
+    .field-error.show { display: block; }
+
+    /* Submit button */
+    .btn {
+      width: 100%;
+      padding: .8rem;
+      margin-top: .8rem;
+      background: var(--orange);
+      border: none;
+      border-radius: 3px;
+      color: #000;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+    .btn:hover  { background: #ff8533; }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { background: #444; cursor: not-allowed; color: #888; }
+
+    /* Message box */
+    #message {
+      margin-top: 1rem;
+      padding: .7rem .9rem;
+      border-radius: 3px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .82rem;
+      display: none;
+    }
+    #message.success { display:block; background:#0d2b1d; border:1px solid var(--success); color:var(--success); }
+    #message.error   { display:block; background:#2b0d0d; border:1px solid var(--error);   color:var(--error);   }
+
+    /* ⚠️ VULNERABILITY: innerHTML used for error display — intentional for Part 3 XSS demo */
+    #vuln-output {
+      margin-top: 1.2rem;
+      padding: .6rem .9rem;
+      background: #1a1a1a;
+      border: 1px dashed #333;
+      border-radius: 3px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .78rem;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    #vuln-output span { color: var(--orange); }
+
+    .divider {
+      text-align: center;
+      font-size: .72rem;
+      color: var(--muted);
+      letter-spacing: .12em;
+      margin: 1.2rem 0 1rem;
+      position: relative;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 38%;
+      height: 1px;
+      background: var(--border);
+    }
+    .divider::before { left: 0; }
+    .divider::after  { right: 0; }
+
+    .footer-links {
+      display: flex;
+      justify-content: space-between;
+      font-size: .78rem;
+    }
+    .footer-links a { color: var(--orange); text-decoration: none; }
+    .footer-links a:hover { text-decoration: underline; }
+
+    .badge {
+      text-align: center;
+      margin-top: 1.8rem;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .65rem;
+      color: #333;
+      letter-spacing: .1em;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="logo">
+    <div class="logo-icon">🧃</div>
+    <h1>Juice Shop</h1>
+    <p>OWASP · Deliberately Insecure</p>
+  </div>
+
+  <div class="card">
+    <h2>// Sign In</h2>
+
+    <div class="field">
+      <label for="email">Email Address</label>
+      <input type="text" id="email" placeholder="user@example.com" autocomplete="off"/>
+      <div class="field-error" id="email-error"></div>
+    </div>
+
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Min. 8 characters" autocomplete="off"/>
+      <div class="field-error" id="password-error"></div>
+    </div>
+
+    <button class="btn" id="login-btn" onclick="handleLogin()">Login</button>
+
+    <div id="message"></div>
+
+    <!--
+      ⚠️  INTENTIONAL VULNERABILITY (Part 3 Demo)
+      The div below uses innerHTML to reflect user input,
+      which enables a Stored/Reflected XSS attack.
+      Fix: replace innerHTML with textContent.
+    -->
+    <div id="vuln-output">
+      Last attempted email: <span id="reflected-email">—</span>
+    </div>
+
+    <div class="divider">or</div>
+
+    <div class="footer-links">
+      <a href="#">Register</a>
+      <a href="#">Forgot Password?</a>
+    </div>
+  </div>
+
+  <div class="badge">⚡ HW3 · OWASP Juice Shop · CS Security</div>
+</div>
+
+<script>
+  // ─── Client-Side Validation ────────────────────────────────────────────────
+
+  function validateEmail(email) {
+    if (!email) return 'Email is required.';
+    if (!email.includes('@')) return 'Email must contain "@".';
+    return null;
+  }
+
+  function validatePassword(password) {
+    if (!password) return 'Password is required.';
+    if (password.length < 8) return 'Password must be at least 8 characters.';
+    return null;
+  }
+
+  function setFieldState(inputId, errorId, errorMsg) {
+    const input = document.getElementById(inputId);
+    const errEl = document.getElementById(errorId);
+    if (errorMsg) {
+      input.classList.add('invalid');
+      input.classList.remove('valid');
+      errEl.textContent = errorMsg;
+      errEl.classList.add('show');
+      return false;
+    } else {
+      input.classList.remove('invalid');
+      input.classList.add('valid');
+      errEl.textContent = '';
+      errEl.classList.remove('show');
+      return true;
+    }
+  }
+
+  function showMessage(text, type) {
+    const el = document.getElementById('message');
+    el.textContent = text;
+    el.className = type; // 'success' or 'error'
+  }
+
+  // ─── Main Handler ──────────────────────────────────────────────────────────
+
+  function handleLogin() {
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    const emailOk = setFieldState('email',    'email-error',    validateEmail(email));
+    const passOk  = setFieldState('password', 'password-error', validatePassword(password));
+
+    // ⚠️ VULNERABILITY: innerHTML reflects raw user input → XSS possible
+    // Fix: use textContent instead of innerHTML
+    document.getElementById('reflected-email').innerHTML = email;
+
+    if (!emailOk || !passOk) {
+      showMessage('Please fix the errors above.', 'error');
+      return;
+    }
+
+    // Simulated server-side check (client-side only for demo)
+    if (email === 'admin@juice-sh.op' && password === 'admin123') {
+      showMessage('✓ Login successful! Redirecting...', 'success');
+    } else {
+      showMessage('✗ Invalid email or password.', 'error');
+    }
+  }
+
+  // ─── Live inline validation ────────────────────────────────────────────────
+
+  document.getElementById('email').addEventListener('blur', function() {
+    setFieldState('email', 'email-error', validateEmail(this.value.trim()));
+  });
+
+  document.getElementById('password').addEventListener('blur', function() {
+    setFieldState('password', 'password-error', validatePassword(this.value));
+  });
+
+  // Enter key support
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') handleLogin();
+  });
+</script>
+
+</body>
+</html>
